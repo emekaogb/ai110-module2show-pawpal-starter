@@ -36,6 +36,11 @@ if st.button("Save Owner & Pet"):
     st.session_state.schedule.add_pet(pet)
     st.success(f"Saved {owner_name} and {pet_name} the {species}.")
 
+if st.session_state.owner and st.session_state.pet:
+    col1, col2 = st.columns(2)
+    col1.metric("Owner", st.session_state.owner.name)
+    col2.metric("Pet", f"{st.session_state.pet.name} ({st.session_state.pet.animal})")
+
 st.divider()
 
 # --- Add a Task ---
@@ -67,21 +72,33 @@ if st.button("Add Task"):
             frequency=frequency,
         )
         st.session_state.pet.add_task(task)
-        st.success(f"Added task: {task_title}")
+        st.success(f"Task added: **{task_title}** ({duration} min, {priority_str} priority)")
 
-# Show current tasks
+# --- Current task list ---
 if st.session_state.pet and st.session_state.pet.tasks:
-    st.write(f"Tasks for {st.session_state.pet.name}:")
-    st.table([
-        {
-            "Task": t.name,
-            "Duration (min)": t.duration,
-            "Priority": t.priority.name,
-            "Frequency": t.frequency,
-            "Done": t.completed,
-        }
-        for t in st.session_state.pet.tasks
-    ])
+    tasks = st.session_state.pet.tasks
+    pending = [t for t in tasks if not t.completed]
+    done = [t for t in tasks if t.completed]
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Tasks", len(tasks))
+    col2.metric("Pending", len(pending))
+    col3.metric("Completed", len(done))
+
+    priority_icon = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}
+    st.dataframe(
+        [
+            {
+                "Task": t.name,
+                "Duration (min)": t.duration,
+                "Priority": f"{priority_icon.get(t.priority.name, '')} {t.priority.name}",
+                "Frequency": t.frequency,
+                "Done": "✓" if t.completed else "—",
+            }
+            for t in tasks
+        ],
+        use_container_width=True,
+    )
 else:
     st.info("No tasks yet. Add one above.")
 
@@ -90,7 +107,11 @@ st.divider()
 # --- Generate Schedule ---
 st.subheader("Build Schedule")
 
-time_budget = st.number_input("Time budget (minutes)", min_value=10, max_value=480, value=120)
+col1, col2 = st.columns(2)
+with col1:
+    time_budget = st.number_input("Time budget (minutes)", min_value=10, max_value=480, value=120)
+with col2:
+    sort_order = st.selectbox("Sort by duration", ["none", "shortest first", "longest first"])
 
 if st.button("Generate Schedule"):
     if st.session_state.pet is None or not st.session_state.pet.tasks:
@@ -98,18 +119,45 @@ if st.button("Generate Schedule"):
     else:
         st.session_state.schedule.time_budget = time_budget
         result = st.session_state.schedule.schedule_all_tasks()
-        if result:
-            st.success("Today's Plan:")
-            st.table([
-                {
-                    "Pet": e["pet"],
-                    "Task": e["task"],
-                    "Duration (min)": e["duration"],
-                    "Priority": e["priority"].name,
-                }
-                for e in result
-            ])
-            total = sum(e["duration"] for e in result)
-            st.caption(f"Total time: {total} min of {time_budget} min budget used.")
+
+        if not result:
+            st.warning("No tasks fit within the time budget. Try increasing it.")
         else:
-            st.warning("No tasks fit within the time budget.")
+            if sort_order == "shortest first":
+                result = st.session_state.schedule.sort_by_time(reverse=False)
+            elif sort_order == "longest first":
+                result = st.session_state.schedule.sort_by_time(reverse=True)
+
+            total = sum(e["duration"] for e in result)
+            skipped = len(st.session_state.pet.tasks) - len(result)
+
+            st.success(f"Schedule generated — {len(result)} tasks, {total} min planned.")
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Tasks Scheduled", len(result))
+            col2.metric("Time Used (min)", total)
+            col3.metric("Tasks Skipped", skipped, delta=f"-{skipped}" if skipped else None,
+                        delta_color="inverse")
+
+            priority_icon = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}
+            st.dataframe(
+                [
+                    {
+                        "Start (min)": e["start_time"],
+                        "Pet": e["pet"],
+                        "Task": e["task"],
+                        "Duration (min)": e["duration"],
+                        "Priority": f"{priority_icon.get(e['priority'].name, '')} {e['priority'].name}",
+                    }
+                    for e in result
+                ],
+                use_container_width=True,
+            )
+
+            conflicts = st.session_state.schedule.detect_conflicts()
+            if conflicts:
+                st.warning(f"{len(conflicts)} conflict(s) detected in the schedule:")
+                for a, b in conflicts:
+                    st.write(f"- **{a['pet']} / {a['task']}** overlaps with **{b['pet']} / {b['task']}**")
+            else:
+                st.success("No scheduling conflicts detected.")
