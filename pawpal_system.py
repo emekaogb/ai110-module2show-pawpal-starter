@@ -1,4 +1,6 @@
+from datetime import date, timedelta
 from enum import Enum
+from itertools import combinations
 
 
 class Priority(Enum):
@@ -8,19 +10,27 @@ class Priority(Enum):
 
 
 class Task:
-    def __init__(self, name: str, duration: int, priority: Priority, frequency: str):
+    FREQUENCY_DELTA = {
+        "daily": timedelta(days=1),
+        "weekly": timedelta(weeks=1),
+    }
+
+    def __init__(self, name: str, duration: int, priority: Priority, frequency: str,
+                 due_date: date = None):
         """
         Args:
             name: short description of the task (e.g. "Morning walk")
             duration: time in minutes
             priority: Priority enum value
             frequency: how often the task recurs (e.g. "daily", "weekly")
+            due_date: the date this task is due (defaults to today)
         """
         self.name = name
         self.duration = duration
         self.priority = priority
         self.frequency = frequency
         self.completed = False
+        self.due_date = due_date if due_date is not None else date.today()
 
     def update_task(self, name=None, duration=None, priority=None, frequency=None):
         """Update any combination of task fields; omitted fields are unchanged."""
@@ -41,9 +51,15 @@ class Task:
         """Reset this task to pending."""
         self.completed = False
 
+    def next_occurrence(self) -> "Task":
+        """Return a fresh pending copy of this task due on its next calculated date."""
+        delta = Task.FREQUENCY_DELTA.get(self.frequency)
+        next_due = self.due_date + delta if delta else self.due_date
+        return Task(self.name, self.duration, self.priority, self.frequency, next_due)
+
     def __repr__(self):
         status = "done" if self.completed else "pending"
-        return f"Task('{self.name}', {self.duration}min, {self.priority.name}, {status})"
+        return f"Task('{self.name}', {self.duration}min, {self.priority.name}, due {self.due_date}, {status})"
 
 
 class Pet:
@@ -56,6 +72,15 @@ class Pet:
     def add_task(self, task: Task):
         """Append a Task to this pet's task list."""
         self.tasks.append(task)
+
+    def complete_task(self, task_name: str):
+        """Mark a task complete and re-queue it if its frequency is daily or weekly."""
+        for task in self.tasks:
+            if task.name == task_name and not task.completed:
+                task.mark_complete()
+                if task.frequency in ("daily", "weekly"):
+                    self.tasks.append(task.next_occurrence())
+                break
 
     def remove_task(self, task_name: str):
         """Remove all tasks matching the given name."""
@@ -148,9 +173,33 @@ class Schedule:
                     "task": task.name,
                     "duration": task.duration,
                     "priority": task.priority,
+                    "completed": task.completed,
+                    "start_time": time_used,
                 })
                 time_used += task.duration
 
+        return self.schedule
+
+    def detect_conflicts(self) -> list[tuple[dict, dict]]:
+        """Return all (a, b) pairs from the schedule whose time windows overlap."""
+        def overlaps(a, b) -> bool:
+            return a["start_time"] < b["start_time"] + b["duration"] \
+               and b["start_time"] < a["start_time"] + a["duration"]
+
+        return [(a, b) for a, b in combinations(self.schedule, 2) if overlaps(a, b)]
+
+    def filter_tasks(self, pet_name: str = None, completed: bool = None) -> list[dict]:
+        """Filter scheduled tasks by pet name, completion status, or both."""
+        results = self.schedule
+        if pet_name is not None:
+            results = [e for e in results if e["pet"] == pet_name]
+        if completed is not None:
+            results = [e for e in results if e["completed"] == completed]
+        return results
+
+    def sort_by_time(self, reverse: bool = False) -> list[dict]:
+        """Sort the current schedule entries by task duration, shortest first by default."""
+        self.schedule.sort(key=lambda e: e["duration"], reverse=reverse)
         return self.schedule
 
     def get_schedule_summary(self) -> str:
@@ -160,7 +209,7 @@ class Schedule:
         lines = [f"Daily Plan ({sum(e['duration'] for e in self.schedule)} min):"]
         for entry in self.schedule:
             lines.append(
-                f"  [{entry['priority'].name}] {entry['pet']} — {entry['task']} ({entry['duration']} min)"
+                f"  [t={entry['start_time']:>3}min] [{entry['priority'].name}] {entry['pet']} — {entry['task']} ({entry['duration']} min)"
             )
         return "\n".join(lines)
 

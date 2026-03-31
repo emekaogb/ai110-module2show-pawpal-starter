@@ -30,10 +30,14 @@ I added the add_pet() method to the Schedule object class so that if a new pet n
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 - How did you decide which constraints mattered most?
 
+The scheduler considers duration, priority and frequency that the task needs to be performed when creating the schedule. I decided these mattered the most because they determine when a task could and should be scheduled vs. what is preferred which can be added later if necessary.
+
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+
+One tradeoff was that the detect conflicts method runs in O(N-squared) because I wanted the logic to be more readable as opposed to optimized. Since, the system will nly be used to small, practical examples, I figured it should be fine for now, and optimization can come later.
 
 ---
 
