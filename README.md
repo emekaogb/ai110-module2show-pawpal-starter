@@ -41,15 +41,3 @@ pip install -r requirements.txt
 5. Add tests to verify key behaviors.
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
-
-# System Design
-*Core Actions:*
-1. Add a pet.
-2. Schedule a walk.
-3. See today's tasks.
-
-*Objects:*
-- Owner (attributes: [name, email, image])
-- Pet (attributes: [name, animal, image, tasks], methods: [init, add_task, update_pet, ])
-- Task (attributes: [name, duration, priority, frequency], methods: [init, update_task, ])
-- Schedule (attributes: [schedule, pets], methods: [init, schedule_all_tasks, ])

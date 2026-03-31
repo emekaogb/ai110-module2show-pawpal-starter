@@ -2,15 +2,24 @@
 
 ## 1. System Design
 
+*Core Actions:*
+1. Add a pet.
+2. Schedule a walk.
+3. See today's tasks.
+
+*Objects:*
+- Owner (attributes: [name, email, image])
+- Pet (attributes: [name, animal, image, tasks], methods: [init, add_task, update_pet, ])
+- Task (attributes: [name, duration, priority, frequency], methods: [init, update_task, ])
+- Schedule (attributes: [schedule, pets], methods: [init, schedule_all_tasks, ])
+
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+There is one owner. The Pet object has a list of tasks. The Task object has name, duration, priority and frequency to be used for scheduling purposes. The Schedule object takes in a list of pets
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+I added the add_pet() method to the Schedule object class so that if a new pet needs to be accounted for, a whole new object doesn't need to be created. I also made priority on Task an enum based on the AI's suggestion.
 
 ---
 
